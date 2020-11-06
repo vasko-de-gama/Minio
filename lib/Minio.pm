@@ -77,7 +77,8 @@ sub Lookup {
   my $Args = shift;
   my $Path = $Args->{'minio_path'} || return {status=>'error',error_message=>"Path minio not defined"};
   my $Look = LS($X,{'minio_path'=>$Path});
-  return $Look->{'data'}->[0] && $Look->{'data'}->[0]->{'key'} ? 1 : 0;
+  return $Look if $Look->{'status'} eq 'error';
+  return $Look->{'data'}->[0] && $Look->{'data'}->[0]->{'key'} ? ($Args->{'info'}?$Look->{'data'}->[0]:1) : 0;
 }
 
 sub LS {
