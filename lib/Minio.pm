@@ -8,22 +8,23 @@ our $VERSION = '0.01';
 sub new {
   my $class = shift;
   my $X = {};
-  my %Args = @_;
+  my $Args = shift;
 
-  my $MinioEXE = $Args{'minio_path'} || FindFile('minio-mc', [split /:/,$ENV{'PATH'}]);
+  my $MinioEXE = $Args->{'minio_client'} || FindFile('minio-mc', [split /:/,$ENV{'PATH'}]);
 
-  die "\ncan't find Minio client".($Args{'minio_path'}?" [".$Args{'minio_path'}."]":"")
+  die "\ncan't find Minio client".($Args->{'minio_path'}?" [".$Args->{'minio_path'}."]":"")
     ."\n\ninstall Minio-client and use 'minio_path_dir' parameter\nhttps://docs.min.io/docs/minio-client-quickstart-guide.html\n\n"
       if !$MinioEXE || !-f $MinioEXE;
-
-  unless (CheckMinioConfig($Args{'minio_config_dir'})) {
-    die "Can't find Minio-config path or config corrupted. Use 'minio_config' parameter.";
+  
+  my $Check = CheckMinioConfig($Args->{'minio_config_dir'});
+  unless ($Check == 1) {
+    die "Can't find Minio-config path or config corrupted. Use 'minio_config_dir' parameter.: ".$Check;
   }
 
-  $X->{'json'} = $Args{'json'} || 1;
-  $X->{'debug'} = $Args{'debug'} || 0;
+  $X->{'json'} = $Args->{'json'} || 1;
+  $X->{'debug'} = $Args->{'debug'} || 0;
   $X->{'minio_exe'} = $MinioEXE;
-  $X->{'minio_config'} = $Args{'minio_config_dir'};
+  $X->{'minio_config'} = $Args->{'minio_config_dir'};
 
   bless $X, $class;
   return $X;
@@ -50,7 +51,7 @@ sub _ex {
       $Ex =~ s/}[\n\r]{/},{/g;
       $Ex = '['.$Ex.']';
       $JSON = decode_json($Ex);
-      if (!$Args->{'as_array'} && scalar @$JSON == 1) {
+      if (!$Args->{'as_array'} && scalar @$JSON == 1 || ($JSON->[0] && $JSON->[0]->{'status'} eq 'error') ) {
         $JSON = $JSON->[0];
         $Ex =~ s/^\[//;
         $Ex =~ s/\]$//;
@@ -65,69 +66,80 @@ sub _ex {
     };
     $R->{'error'} = $JSON->{error}->{cause}->{message} || $JSON->{error}->{message}
       if ref $JSON eq 'HASH' && $JSON->{status} eq 'error';
+    $R->{'status'} = $R->{'error'} ? 'error' : 'success';
     return $R;
   }
   return $Ex;
 }
 
+sub Lookup {
+  my $X = shift;
+  my $Args = shift;
+  my $Path = $Args->{'minio_path'} || return {status=>'error',error_message=>"Path minio not defined"};
+  my $Look = LS($X,{'minio_path'=>$Path});
+  return $Look->{'data'}->[0] && $Look->{'data'}->[0]->{'key'} ? 1 : 0;
+}
+
 sub LS {
   my $X = shift;
-  my $BucketName = shift || return {error=>"Bucket name not defined"};
   my $Args = shift;
-  my $Cmd = 'ls '.$BucketName;
+  my $Path = $Args->{'minio_path'} || return {status=>'error',error_message=>"Path minio not defined"};
+  my $Cmd = 'ls '.$Path;
   $Args->{'as_array'}=1;
   return $X->_ex($Cmd, $Args);
 }
 
 sub Tree {
   my $X = shift;
-  my $BucketName = shift || return {error=>"Bucket name not defined"};
   my $Args = shift;
-  my $Cmd = 'tree '.$BucketName;
+  my $Path = $Args->{'minio_path'} || return {status=>'error',error_message=>"Path minio defined"};
+  my $Cmd = 'tree '.$Path;
   $Args->{'as_array'}=1;
   return $X->_ex($Cmd, $Args);
 }
 
 sub Local2Minio {
   my $X = shift;
-  my $Source = shift || return {error=>"Source not defined"};
-  my $BucketName = shift || return {error=>"Destination not defined"};
-  return {error=>"Source file '".$Source." not exists"}
-    if !-f $Source && !-d $Source;
   my $Args = shift;
-  my $Cmd = 'cp '.$Source.' '.$BucketName;
+  my $Source = $Args->{'local_path'} || return {status=>'error',error_message=>"Source 'local_path' not defined"};
+  my $Destination = $Args->{'minio_path'} || return {status=>'error',error_message=>"Destination 'minio_path' not defined"};
+  return {status=>'error',error_message=>"Source file '".$Source." not exists"}
+    if !-f $Source && !-d $Source;
+  my $Cmd = 'cp '.$Source.' '.$Destination;
   return $X->_ex($Cmd, $Args);
 }
 
 sub Minio2Local {
   my $X = shift;
-  my $BucketName = shift || return {error=>"Destination not defined"};
-  my $Source = shift || return {error=>"Source not defined"};
   my $Args = shift;
-  my $Cmd = 'cp '.$BucketName.' '.$Source;
+  my $Source = $Args->{'minio_path'} || return {status=>'error',error_message=>"Source 'minio_path' not defined"};
+  my $Destination = $Args->{'local_path'} || return {status=>'error',error_message=>"Destination 'local_path' not defined"};
+  return {status=>'error',error_message=>"Source minio path '".$Source." not exists"}
+    unless Lookup($X,{'minio_path'=>$Source});
+  my $Cmd = 'cp '.$Source.' '.$Destination;
   return $X->_ex($Cmd, $Args);
 }
 
 sub MakeBucket {
   my $X = shift;
-  my $BucketName = shift || return {error=>"Bucket name not defined"};
   my $Args = shift;
+  my $BucketName = $Args->{'bucket'} || return {status=>'error',error_message=>"Bucket name not defined"};
   my $Cmd = 'mb '.$BucketName;
   return $X->_ex($Cmd, $Args);
 }
 
 sub DeleteBucket {
   my $X = shift;
-  my $BucketName = shift || return {error=>"Bucket name not defined"};
   my $Args = shift;
+  my $BucketName = $Args->{'bucket'} || return {status=>'error',error_message=>"Bucket name not defined"};
   my $Cmd = 'rb '.($Args->{force}?'--force ':'').$BucketName;
   return $X->_ex($Cmd, $Args);
 }
 
 sub CheckMinioConfig {
-  my $Path = shift || return undef;
-  return undef unless -d $Path;
-  return undef unless -f $Path.'/config.json';
+  my $Path = shift || return 'param not defined';
+  return 'config dir "'.$Path.'" not exists' unless -d $Path;
+  return 'config dir "'.$Path.'" wrong' unless -f $Path.'/config.json';
   return 1;
 }
 
