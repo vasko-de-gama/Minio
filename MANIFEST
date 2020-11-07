@@ -1,0 +1,7 @@
+lib/Minio.pm
+Makefile.PL
+MANIFEST			This list of files
+README
+script/example.pl
+script/minio-mc
+script/minio/config.json

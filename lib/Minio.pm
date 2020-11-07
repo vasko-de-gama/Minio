@@ -5,7 +5,7 @@ use strict;
 use utf8;
 use JSON::XS;
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 sub new {
   my $class = shift;
@@ -158,7 +158,7 @@ sub FindFile {
 
 =head1 LICENSE AND COPYRIGHT
 
-Copyright (C) 2016 Litres.ru
+Copyright (C) 2020 Litres.ru
 
 The GNU Lesser General Public License version 3.0
 
