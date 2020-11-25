@@ -5,7 +5,55 @@ use strict;
 use utf8;
 use JSON::XS;
 
-our $VERSION = '0.02';
+=head1 NAME
+
+Minio - interface to minio client
+
+=head1 VERSION
+
+Version 0.04
+
+=cut
+
+our $VERSION = '0.05';
+
+=head1 SYNOPSIS
+
+  use Minio;
+  use Data::Dumper;
+
+  my $MObj = new Minio({
+   'json' => 1,
+   'debug' => 1,
+   'minio_client' => '/usr/bin/minio-mc',
+   'minio_config_dir' => '/etc/minio',
+  });
+
+  my $MB = $MObj->MakeBucket({bucket=>'myminio/pub'});
+  print Data::Dumper::Dumper($MB);
+
+  my $MD = $MObj->DeleteBucket({bucket=>'myminio/pub', force=>1});
+  print Data::Dumper::Dumper($MD);
+
+  my $L2M = $MObj->Local2Minio({local_path=>'/tmp/file.txt',minio_path=>'myminio/pub/00/11/22/33/44/file.txt'});
+  print Data::Dumper::Dumper($L2M);
+
+  my $M2L = $MObj->Minio2Local({minio_path=>'myminio/pub/00/11/22/33/44/file.txt',local_path=>'/tmp/file2.txt'});
+  print Data::Dumper::Dumper($M2L);
+
+  my $LS = $MObj->LS({minio_path=>'myminio/pub/00/11/22/33/44/'});
+  print Data::Dumper::Dumper($LS);
+
+  my $Cat = $MObj->Cat({minio_path=>'myminio/pub/00/11/22/33/44/file.txt'});
+  print $Cat;
+
+  my $Tree = $MObj->Tree({minio_path=>'myminio/pub',json=>0});
+  print $Tree;
+
+  my $Look = $MObj->Lookup({minio_path=>'myminio/pub/00/11/22/33/44/file.txt'});
+  print $Look;
+
+=cut
 
 sub new {
   my $class = shift;
@@ -77,16 +125,29 @@ sub _ex {
 sub Lookup {
   my $X = shift;
   my $Args = shift;
-  my $Path = $Args->{'minio_path'} || return {status=>'error',error_message=>"Path minio not defined"};
+  my $Path = $Args->{'minio_path'} || return {status=>'error',error_message=>"'minio_path' not defined"};
   my $Look = LS($X,{'minio_path'=>$Path});
   return $Look if $Look->{'status'} eq 'error';
   return $Look->{'data'}->[0] && $Look->{'data'}->[0]->{'key'} ? ($Args->{'info'}?$Look->{'data'}->[0]:1) : 0;
 }
 
+sub Cat {
+  my $X = shift;
+  my $JS = $X->{'json'};
+  $X->{'json'} = 0;
+  my $Args = shift;
+  my $Path = $Args->{'minio_path'} || return {status=>'error',error_message=>"'minio_path' not defined"};
+  my $Cmd = 'cat '.$Path;
+  $Args->{'as_array'}=1;
+  my $Ret = $X->_ex($Cmd, $Args);
+  $X->{'json'} = $JS;
+  return $Ret;
+}
+
 sub LS {
   my $X = shift;
   my $Args = shift;
-  my $Path = $Args->{'minio_path'} || return {status=>'error',error_message=>"Path minio not defined"};
+  my $Path = $Args->{'minio_path'} || return {status=>'error',error_message=>"'minio_path' not defined"};
   my $Cmd = 'ls '.$Path;
   $Args->{'as_array'}=1;
   return $X->_ex($Cmd, $Args);
@@ -95,7 +156,7 @@ sub LS {
 sub Tree {
   my $X = shift;
   my $Args = shift;
-  my $Path = $Args->{'minio_path'} || return {status=>'error',error_message=>"Path minio defined"};
+  my $Path = $Args->{'minio_path'} || return {status=>'error',error_message=>"'minio_path' not defined"};
   my $Cmd = 'tree '.$Path;
   $Args->{'as_array'}=1;
   return $X->_ex($Cmd, $Args);
