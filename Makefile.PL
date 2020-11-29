@@ -10,7 +10,7 @@ WriteMakefile(
     #ABSTRACT_FROM    => 'lib/Minio.pm',
     LICENSE          => 'lgpl_3_0',
     PL_FILES         => {},
-    EXE_FILES => ['script/connect.pl'],
+    EXE_FILES => ['script/example.pl'],
     MIN_PERL_VERSION => 5.006001,
     CONFIGURE_REQUIRES => {
         'ExtUtils::MakeMaker' => 0,

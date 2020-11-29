@@ -15,7 +15,7 @@ Version 0.04
 
 =cut
 
-our $VERSION = '0.05';
+our $VERSION = '0.07';
 
 =head1 SYNOPSIS
 
@@ -40,6 +40,9 @@ our $VERSION = '0.05';
 
   my $M2L = $MObj->Minio2Local({minio_path=>'myminio/pub/00/11/22/33/44/file.txt',local_path=>'/tmp/file2.txt'});
   print Data::Dumper::Dumper($M2L);
+
+  my $Delete = $MObj->Delete({minio_path=>'myminio/pub/00/11/22/33/44/file.txt'});
+  print Data::Dumper::Dumper($Delete);
 
   my $LS = $MObj->LS({minio_path=>'myminio/pub/00/11/22/33/44/'});
   print Data::Dumper::Dumper($LS);
@@ -142,6 +145,15 @@ sub Cat {
   my $Ret = $X->_ex($Cmd, $Args);
   $X->{'json'} = $JS;
   return $Ret;
+}
+
+sub Delete {
+  my $X = shift;
+  my $Args = shift;
+  my $Path = $Args->{'minio_path'} || return {status=>'error',error_message=>"'minio_path' not defined"};
+  my $Cmd = 'rm '.$Path;
+  $Args->{'as_array'}=1;
+  return $X->_ex($Cmd, $Args);
 }
 
 sub LS {
